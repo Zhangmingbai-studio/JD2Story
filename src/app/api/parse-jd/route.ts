@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateObject } from "ai";
+import { generateText } from "ai";
 import { z } from "zod";
 import { model, assertLLMConfigured, LLMNotConfiguredError } from "@/lib/llm";
 import { JDStructureSchema } from "@/lib/schemas";
@@ -27,16 +27,25 @@ export async function POST(req: NextRequest) {
     assertLLMConfigured();
     const { jd, title, company, direction } = parsed.data;
 
-    const { object } = await generateObject({
+    const { text } = await generateText({
       model,
-      schema: JDStructureSchema,
       temperature: 0.2,
       system:
-        "你是资深程序员面试辅导教练。你的任务是把一份 JD 拆成结构化信息，重点是挖出面试官会深挖的方向。输出必须严格符合给定 schema，所有字段用简体中文。",
+        "你是资深程序员面试辅导教练。你的任务是把一份 JD 拆成结构化信息，重点是挖出面试官会深挖的方向。所有字段用简体中文。只输出 JSON，不要输出其他内容。",
       prompt: buildPrompt({ jd, title, company, direction }),
     });
 
-    return NextResponse.json({ ok: true, data: object });
+    const json = JSON.parse(text.replace(/^```json\s*/, "").replace(/```\s*$/, ""));
+    const result = JDStructureSchema.safeParse(json);
+    if (!result.success) {
+      console.error("[parse-jd] schema validation failed:", result.error.issues);
+      return NextResponse.json(
+        { ok: false, error: "JD 解析结果格式异常，请重试" },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({ ok: true, data: result.data });
   } catch (err) {
     if (err instanceof LLMNotConfiguredError) {
       return NextResponse.json(
@@ -71,6 +80,17 @@ function buildPrompt(input: {
 """
 ${jd}
 """
+
+请严格按照以下 JSON 格式输出，字段名必须完全一致：
+{
+  "title": "岗位名称（如果用户填了以用户为准，否则从 JD 推断）",
+  "experienceRequirement": "经验要求，例如 '3 年以上后端开发经验'",
+  "coreSkills": ["核心技能1", "核心技能2"],
+  "bonusSkills": ["加分项1", "加分项2"],
+  "domainHints": ["业务或领域线索，例如 '金融风控'"],
+  "implicitFocus": ["隐含关注点1", "隐含关注点2"],
+  "likelyInterviewTopics": ["面试深挖话题1", "面试深挖话题2"]
+}
 
 提取要点：
 - coreSkills / bonusSkills 必须是具体技术点或能力项，不要泛化成 "良好的沟通能力" 这种形容词。

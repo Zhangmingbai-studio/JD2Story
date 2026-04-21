@@ -1,14 +1,4 @@
-import Link from "next/link";
-import { ResumeForm } from "@/features/input/ResumeForm";
-
-const jobDirections = [
-  "后端",
-  "C++",
-  "Java",
-  "Go",
-  "平台 / 基础设施",
-  "SRE",
-];
+import { InputForm } from "@/features/input/InputForm";
 
 export default function InputPage() {
   return (
@@ -19,86 +9,7 @@ export default function InputPage() {
           左边粘 JD，右边放简历。字段越完整，生成的作战卡越准。
         </p>
       </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <JDSection />
-        <ResumeForm />
-      </div>
-
-      <div className="mt-8 flex justify-end">
-        <Link
-          href="/processing"
-          className="inline-flex items-center rounded-lg bg-blue-600 px-8 py-3 text-base font-medium text-white shadow-sm transition hover:bg-blue-700"
-        >
-          生成作战卡
-        </Link>
-      </div>
+      <InputForm />
     </main>
-  );
-}
-
-function JDSection() {
-  return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">岗位 JD</h2>
-
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <Field label="岗位名称（可选）">
-          <input
-            type="text"
-            placeholder="例如：高级后端工程师"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
-        </Field>
-        <Field label="公司名称（可选）">
-          <input
-            type="text"
-            placeholder="例如：字节跳动"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
-        </Field>
-      </div>
-
-      <Field label="岗位方向" className="mt-4">
-        <div className="flex flex-wrap gap-2">
-          {jobDirections.map((dir) => (
-            <label
-              key={dir}
-              className="cursor-pointer rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-sm text-slate-700 hover:border-slate-400 has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700"
-            >
-              <input type="radio" name="direction" className="hidden" />
-              {dir}
-            </label>
-          ))}
-        </div>
-      </Field>
-
-      <Field label="JD 正文" className="mt-4">
-        <textarea
-          rows={14}
-          placeholder="把完整的 JD 粘贴到这里……"
-          className="w-full resize-y rounded-md border border-slate-300 px-3 py-2 font-mono text-sm leading-relaxed outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-        />
-      </Field>
-    </section>
-  );
-}
-
-function Field({
-  label,
-  children,
-  className = "",
-}: {
-  label: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <label className={`block ${className}`}>
-      <span className="mb-1.5 block text-sm font-medium text-slate-700">
-        {label}
-      </span>
-      {children}
-    </label>
   );
 }

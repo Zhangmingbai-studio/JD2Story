@@ -8,8 +8,12 @@ type UploadState =
   | { status: "success"; fileName: string }
   | { status: "error"; message: string };
 
-export function ResumeForm() {
-  const [text, setText] = useState("");
+type Props = {
+  value: string;
+  onChange: (next: string) => void;
+};
+
+export function ResumeForm({ value, onChange }: Props) {
   const [upload, setUpload] = useState<UploadState>({ status: "idle" });
 
   async function handleFile(file: File) {
@@ -31,7 +35,7 @@ export function ResumeForm() {
         });
         return;
       }
-      setText(data.text ?? "");
+      onChange(data.text ?? "");
       setUpload({ status: "success", fileName: file.name });
     } catch {
       setUpload({ status: "error", message: "网络错误，请重试" });
@@ -90,8 +94,8 @@ export function ResumeForm() {
         <textarea
           rows={16}
           placeholder="把简历内容粘贴到这里，或在上方上传后自动填充……"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
           className="w-full resize-y rounded-md border border-slate-300 px-3 py-2 font-mono text-sm leading-relaxed outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         />
       </label>

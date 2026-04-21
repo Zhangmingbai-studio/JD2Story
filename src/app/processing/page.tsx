@@ -1,35 +1,179 @@
-const steps = [
-  "正在解析 JD",
-  "正在提取简历经历",
-  "正在匹配岗位与经历",
-  "正在生成问题与回答骨架",
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { inputStore, resultStore } from "@/lib/storage";
+import type { JDStructure, ResumeStructure } from "@/lib/schemas";
+
+type NodeStatus = "pending" | "running" | "done" | "error";
+
+type Node = {
+  id: string;
+  label: string;
+  status: NodeStatus;
+  detail?: string;
+};
+
+const INITIAL_NODES: Node[] = [
+  { id: "jd", label: "正在解析 JD", status: "pending" },
+  { id: "resume", label: "正在提取简历经历", status: "pending" },
+  { id: "match", label: "正在匹配岗位与经历", status: "pending", detail: "P4 阶段接入" },
+  { id: "questions", label: "正在生成问题与回答骨架", status: "pending", detail: "P4 阶段接入" },
 ];
 
 export default function ProcessingPage() {
+  const router = useRouter();
+  const [nodes, setNodes] = useState<Node[]>(INITIAL_NODES);
+  const [fatalError, setFatalError] = useState<string | null>(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+
+    const input = inputStore.load();
+    if (!input) {
+      router.replace("/input");
+      return;
+    }
+
+    const setNode = (id: string, patch: Partial<Node>) => {
+      setNodes((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, ...patch } : n)),
+      );
+    };
+
+    const jdPromise = (async () => {
+      setNode("jd", { status: "running" });
+      const res = await fetch("/api/parse-jd", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jd: input.jd,
+          title: input.title || undefined,
+          company: input.company || undefined,
+          direction: input.direction || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        const msg = data?.error ?? `HTTP ${res.status}`;
+        setNode("jd", { status: "error", detail: msg });
+        throw new Error(msg);
+      }
+      setNode("jd", { status: "done" });
+      return data.data as JDStructure;
+    })();
+
+    const resumePromise = (async () => {
+      setNode("resume", { status: "running" });
+      const res = await fetch("/api/extract-resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resume: input.resume }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        const msg = data?.error ?? `HTTP ${res.status}`;
+        setNode("resume", { status: "error", detail: msg });
+        throw new Error(msg);
+      }
+      setNode("resume", { status: "done" });
+      return data.data as ResumeStructure;
+    })();
+
+    Promise.all([jdPromise, resumePromise])
+      .then(([jd, resume]) => {
+        resultStore.save({ jd, resume });
+        router.replace("/result");
+      })
+      .catch((err: unknown) => {
+        setFatalError(err instanceof Error ? err.message : "生成失败");
+      });
+  }, [router]);
+
   return (
     <main className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-xl items-center px-6 py-10">
       <div className="w-full">
         <h1 className="text-center text-xl font-semibold text-slate-900">
-          正在生成你的作战卡
+          {fatalError ? "生成中断" : "正在生成你的作战卡"}
         </h1>
         <p className="mt-2 text-center text-sm text-slate-500">
-          （P3 阶段接入后这里会有真实进度）
+          {fatalError
+            ? "下方是失败的步骤，解决后可返回重试。"
+            : "请稍等，这一步 LLM 正在读 JD 和简历……"}
         </p>
 
-        <ul className="mt-8 space-y-4">
-          {steps.map((step, i) => (
-            <li
-              key={step}
-              className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
-            >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs font-medium text-slate-500">
-                {i + 1}
-              </span>
-              {step}
-            </li>
+        <ul className="mt-8 space-y-3">
+          {nodes.map((node) => (
+            <NodeRow key={node.id} node={node} />
           ))}
         </ul>
+
+        {fatalError && (
+          <div className="mt-8 flex justify-center">
+            <Link
+              href="/input"
+              className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-6 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              返回修改输入
+            </Link>
+          </div>
+        )}
       </div>
     </main>
+  );
+}
+
+function NodeRow({ node }: { node: Node }) {
+  const theme: Record<NodeStatus, { bg: string; text: string; iconBg: string; iconText: string; icon: string }> = {
+    pending: {
+      bg: "bg-white",
+      text: "text-slate-500",
+      iconBg: "bg-slate-100",
+      iconText: "text-slate-400",
+      icon: "·",
+    },
+    running: {
+      bg: "bg-blue-50",
+      text: "text-blue-900",
+      iconBg: "bg-blue-500",
+      iconText: "text-white",
+      icon: "…",
+    },
+    done: {
+      bg: "bg-green-50",
+      text: "text-green-900",
+      iconBg: "bg-green-500",
+      iconText: "text-white",
+      icon: "✓",
+    },
+    error: {
+      bg: "bg-red-50",
+      text: "text-red-900",
+      iconBg: "bg-red-500",
+      iconText: "text-white",
+      icon: "!",
+    },
+  };
+  const t = theme[node.status];
+
+  return (
+    <li
+      className={`flex items-start gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm ${t.bg}`}
+    >
+      <span
+        className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${t.iconBg} ${t.iconText}`}
+      >
+        {t.icon}
+      </span>
+      <div className={`flex-1 ${t.text}`}>
+        <div className="font-medium">{node.label}</div>
+        {node.detail && (
+          <div className="mt-0.5 text-xs opacity-80">{node.detail}</div>
+        )}
+      </div>
+    </li>
   );
 }

@@ -75,3 +75,60 @@ export const ResumeStructureSchema = z.object({
 });
 
 export type ResumeStructure = z.infer<typeof ResumeStructureSchema>;
+
+// Match analysis — how well the resume fits the JD.
+export const MatchAnalysisSchema = z.object({
+  matchHighlights: z
+    .array(z.string())
+    .describe("匹配亮点：简历中与 JD 直接匹配的能力或经历。"),
+  gaps: z
+    .array(z.string())
+    .describe("主要短板：JD 要求但简历中缺失或薄弱的领域。"),
+  risks: z
+    .array(z.string())
+    .describe("高风险表述：简历中可能被面试官追问暴露弱点的描述。"),
+  topStories: z
+    .array(
+      z.object({
+        title: z.string().describe("经历标题"),
+        why: z.string().describe("为什么这段经历适合讲"),
+        talkingPoints: z
+          .array(z.string())
+          .describe("讲述时应强调的要点"),
+      }),
+    )
+    .describe("建议主打的 3 段经历，按推荐优先级排序。"),
+});
+
+export type MatchAnalysis = z.infer<typeof MatchAnalysisSchema>;
+
+// Interview questions + answer skeletons.
+export const InterviewQuestionSchema = z.object({
+  category: z
+    .enum(["opener", "technical", "behavioral"])
+    .describe("问题类别：opener=开场，technical=技术，behavioral=行为"),
+  question: z.string().describe("面试问题"),
+  intent: z.string().describe("面试官问这道题的意图"),
+  answerSkeleton: z.object({
+    coreConclusion: z.string().describe("回答的核心结论（一句话）"),
+    structure: z
+      .array(z.string())
+      .describe("回答结构要点，按讲述顺序排列"),
+    dataToEmphasize: z
+      .array(z.string())
+      .describe("要强调的数据或成果"),
+    pitfalls: z
+      .array(z.string())
+      .describe("不要瞎吹的点 / 容易翻车的地方"),
+  }),
+  followUps: z
+    .array(z.string())
+    .describe("面试官可能的追问"),
+});
+
+export const InterviewQuestionsSchema = z.object({
+  questions: z.array(InterviewQuestionSchema).describe("10 道面试题"),
+});
+
+export type InterviewQuestion = z.infer<typeof InterviewQuestionSchema>;
+export type InterviewQuestions = z.infer<typeof InterviewQuestionsSchema>;

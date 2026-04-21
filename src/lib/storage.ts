@@ -1,4 +1,4 @@
-import type { JDStructure, ResumeStructure } from "@/lib/schemas";
+import type { JDStructure, ResumeStructure, MatchAnalysis, InterviewQuestions } from "@/lib/schemas";
 
 const INPUT_KEY = "jd2story:input";
 const RESULT_KEY = "jd2story:result";
@@ -14,6 +14,8 @@ export type InputPayload = {
 export type ResultPayload = {
   jd?: JDStructure;
   resume?: ResumeStructure;
+  match?: MatchAnalysis;
+  questions?: InterviewQuestions;
 };
 
 function isBrowser(): boolean {

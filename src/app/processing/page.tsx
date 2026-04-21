@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { inputStore, resultStore } from "@/lib/storage";
-import type { JDStructure, ResumeStructure } from "@/lib/schemas";
+import type { JDStructure, ResumeStructure, MatchAnalysis, InterviewQuestions } from "@/lib/schemas";
 
 type NodeStatus = "pending" | "running" | "done" | "error";
 
@@ -18,8 +18,8 @@ type Node = {
 const INITIAL_NODES: Node[] = [
   { id: "jd", label: "正在解析 JD", status: "pending" },
   { id: "resume", label: "正在提取简历经历", status: "pending" },
-  { id: "match", label: "正在匹配岗位与经历", status: "pending", detail: "P4 阶段接入" },
-  { id: "questions", label: "正在生成问题与回答骨架", status: "pending", detail: "P4 阶段接入" },
+  { id: "match", label: "正在匹配岗位与经历", status: "pending" },
+  { id: "questions", label: "正在生成问题与回答骨架", status: "pending" },
 ];
 
 export default function ProcessingPage() {
@@ -44,53 +44,84 @@ export default function ProcessingPage() {
       );
     };
 
-    const jdPromise = (async () => {
-      setNode("jd", { status: "running" });
-      const res = await fetch("/api/parse-jd", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jd: input.jd,
-          title: input.title || undefined,
-          company: input.company || undefined,
-          direction: input.direction || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        const msg = data?.error ?? `HTTP ${res.status}`;
-        setNode("jd", { status: "error", detail: msg });
-        throw new Error(msg);
-      }
-      setNode("jd", { status: "done" });
-      return data.data as JDStructure;
-    })();
+    (async () => {
+      try {
+        // Step 1: Parse JD and extract resume in parallel
+        setNode("jd", { status: "running" });
+        setNode("resume", { status: "running" });
 
-    const resumePromise = (async () => {
-      setNode("resume", { status: "running" });
-      const res = await fetch("/api/extract-resume", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resume: input.resume }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        const msg = data?.error ?? `HTTP ${res.status}`;
-        setNode("resume", { status: "error", detail: msg });
-        throw new Error(msg);
-      }
-      setNode("resume", { status: "done" });
-      return data.data as ResumeStructure;
-    })();
+        const [jdRes, resumeRes] = await Promise.all([
+          fetch("/api/parse-jd", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              jd: input.jd,
+              title: input.title || undefined,
+              company: input.company || undefined,
+              direction: input.direction || undefined,
+            }),
+          }),
+          fetch("/api/extract-resume", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ resume: input.resume }),
+          }),
+        ]);
 
-    Promise.all([jdPromise, resumePromise])
-      .then(([jd, resume]) => {
-        resultStore.save({ jd, resume });
+        const jdData = await jdRes.json();
+        const resumeData = await resumeRes.json();
+
+        if (!jdRes.ok || !jdData.ok) {
+          setNode("jd", { status: "error", detail: jdData?.error ?? `HTTP ${jdRes.status}` });
+          throw new Error(jdData?.error ?? "JD 解析失败");
+        }
+        setNode("jd", { status: "done" });
+        const jd = jdData.data as JDStructure;
+
+        if (!resumeRes.ok || !resumeData.ok) {
+          setNode("resume", { status: "error", detail: resumeData?.error ?? `HTTP ${resumeRes.status}` });
+          throw new Error(resumeData?.error ?? "简历抽取失败");
+        }
+        setNode("resume", { status: "done" });
+        const resume = resumeData.data as ResumeStructure;
+
+        // Step 2: Match analysis
+        setNode("match", { status: "running" });
+        const matchRes = await fetch("/api/match-analysis", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jd, resume }),
+        });
+        const matchData = await matchRes.json();
+        if (!matchRes.ok || !matchData.ok) {
+          setNode("match", { status: "error", detail: matchData?.error ?? `HTTP ${matchRes.status}` });
+          throw new Error(matchData?.error ?? "匹配分析失败");
+        }
+        setNode("match", { status: "done" });
+        const match = matchData.data as MatchAnalysis;
+
+        // Step 3: Generate questions
+        setNode("questions", { status: "running" });
+        const qRes = await fetch("/api/generate-questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jd, resume, match }),
+        });
+        const qData = await qRes.json();
+        if (!qRes.ok || !qData.ok) {
+          setNode("questions", { status: "error", detail: qData?.error ?? `HTTP ${qRes.status}` });
+          throw new Error(qData?.error ?? "问题生成失败");
+        }
+        setNode("questions", { status: "done" });
+        const questions = qData.data as InterviewQuestions;
+
+        // All done — save and navigate
+        resultStore.save({ jd, resume, match, questions });
         router.replace("/result");
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
         setFatalError(err instanceof Error ? err.message : "生成失败");
-      });
+      }
+    })();
   }, [router]);
 
   return (
@@ -102,7 +133,7 @@ export default function ProcessingPage() {
         <p className="mt-2 text-center text-sm text-slate-500">
           {fatalError
             ? "下方是失败的步骤，解决后可返回重试。"
-            : "请稍等，这一步 LLM 正在读 JD 和简历……"}
+            : "请稍等，LLM 正在分析 JD 和简历……"}
         </p>
 
         <ul className="mt-8 space-y-3">

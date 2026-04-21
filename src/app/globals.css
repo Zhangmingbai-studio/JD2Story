@@ -7,3 +7,21 @@
     text-wrap: balance;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .onepager-print,
+  .onepager-print * {
+    visibility: visible;
+  }
+  .onepager-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 20px;
+    font-size: 11px;
+  }
+}

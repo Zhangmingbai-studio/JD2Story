@@ -1,36 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# JD2Story
 
-## Getting Started
+程序员面试作战卡 — A web tool that turns a job description into interview battle cards.
 
-First, run the development server:
+Currently this repo contains only project scaffolding; no business features yet.
+
+## Tech stack
+
+- **Next.js 14** (App Router) + **TypeScript**
+- **Tailwind CSS** for styling
+- **Prisma 6** + **PostgreSQL** for data
+- **ESLint** (Next.js defaults)
+
+## Prerequisites
+
+- Node.js **18+** (tested on 20 and 24)
+- npm
+- A PostgreSQL 14+ instance (see [Local PostgreSQL](#local-postgresql) for a one-liner)
+
+## Quick start
 
 ```bash
+# 1. Install dependencies
+npm install
+
+# 2. Copy the env template and edit DATABASE_URL if needed
+cp .env.example .env
+
+# 3. Start PostgreSQL (see below), then generate the Prisma client
+npx prisma generate
+
+# 4. Run the dev server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Local PostgreSQL
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+If you don't have PostgreSQL installed, start one with Docker. The credentials below match the default `.env`:
 
-## Learn More
+```bash
+docker run --name jd2story-postgres \
+  -e POSTGRES_USER=jd2story \
+  -e POSTGRES_PASSWORD=jd2story \
+  -e POSTGRES_DB=jd2story \
+  -p 5432:5432 \
+  -d postgres:16
+```
 
-To learn more about Next.js, take a look at the following resources:
+Stop / restart later with `docker stop jd2story-postgres` / `docker start jd2story-postgres`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Once models are added to `prisma/schema.prisma`, apply them with:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npx prisma migrate dev --name init
+```
 
-## Deploy on Vercel
+## Available scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Script | Purpose |
+| --- | --- |
+| `npm run dev` | Start the Next.js dev server with HMR |
+| `npm run build` | Production build |
+| `npm run start` | Serve the production build |
+| `npm run lint` | Run ESLint |
+| `npx prisma generate` | Regenerate the Prisma client after editing `schema.prisma` |
+| `npx prisma migrate dev` | Create and apply a migration locally |
+| `npx prisma studio` | Open Prisma Studio (DB GUI) |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Directory structure
+
+```
+JD2Story/
+├── prisma/
+│   └── schema.prisma        # DB schema (models go here)
+└── src/
+    ├── app/                 # Next.js App Router — routes, layouts, pages
+    ├── components/          # Shared UI components
+    ├── features/            # Feature modules (one folder per business domain)
+    ├── lib/                 # Clients & utilities (e.g. prisma singleton)
+    └── server/              # Server-only logic (server actions, services)
+```
+
+Import alias `@/*` is configured in `tsconfig.json` and maps to `src/*`.
+
+## Environment variables
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL connection string used by Prisma |
+
+`.env` is gitignored. `.env.example` is the committed template.

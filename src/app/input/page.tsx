@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ResumeForm } from "@/features/input/ResumeForm";
 
 const jobDirections = [
   "后端",
@@ -21,7 +22,7 @@ export default function InputPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <JDSection />
-        <ResumeSection />
+        <ResumeForm />
       </div>
 
       <div className="mt-8 flex justify-end">
@@ -76,42 +77,6 @@ function JDSection() {
         <textarea
           rows={14}
           placeholder="把完整的 JD 粘贴到这里……"
-          className="w-full resize-y rounded-md border border-slate-300 px-3 py-2 font-mono text-sm leading-relaxed outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-        />
-      </Field>
-    </section>
-  );
-}
-
-function ResumeSection() {
-  return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">我的简历</h2>
-
-      <Field label="上传文件" className="mt-4">
-        <div className="flex items-center justify-center rounded-md border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center">
-          <div>
-            <p className="text-sm text-slate-600">
-              拖拽 PDF / DOCX 文件到这里，或
-              <span className="ml-1 font-medium text-blue-600">点击选择</span>
-            </p>
-            <p className="mt-1 text-xs text-slate-400">
-              上传功能将在 P2 阶段接入
-            </p>
-          </div>
-        </div>
-      </Field>
-
-      <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
-        <div className="h-px flex-1 bg-slate-200" />
-        或者直接粘贴文本
-        <div className="h-px flex-1 bg-slate-200" />
-      </div>
-
-      <Field label="简历文本">
-        <textarea
-          rows={16}
-          placeholder="把简历内容粘贴到这里，或在上方上传后自动填充……"
           className="w-full resize-y rounded-md border border-slate-300 px-3 py-2 font-mono text-sm leading-relaxed outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         />
       </Field>

@@ -1,43 +1,43 @@
 # JD2Story
 
-程序员面试作战卡 — A web tool that turns a job description into interview battle cards.
+程序员面试作战卡 —— 一个将职位描述转化为面试作战卡的网页工具。
 
-Currently this repo contains only project scaffolding; no business features yet.
+目前本仓库仅包含项目的基础结构，尚未实现业务功能。
 
-## Tech stack
+## 技术栈
 
-- **Next.js 14** (App Router) + **TypeScript**
-- **Tailwind CSS** for styling
-- **Prisma 6** + **PostgreSQL** for data
-- **ESLint** (Next.js defaults)
+- **Next.js 14**（App Router）+ **TypeScript**
+- **Tailwind CSS** 用于样式
+- **Prisma 6** + **PostgreSQL** 作为数据层
+- **ESLint**（Next.js 默认配置）
 
-## Prerequisites
+## 前置条件
 
-- Node.js **18+** (tested on 20 and 24)
+- Node.js **18+**（已在 20 和 24 测试通过）
 - npm
-- A PostgreSQL 14+ instance (see [Local PostgreSQL](#local-postgresql) for a one-liner)
+- 一套 PostgreSQL 14+ 实例（见下方[本地 PostgreSQL](#local-postgresql)获取一键启动脚本）
 
-## Quick start
+## 快速开始
 
 ```bash
-# 1. Install dependencies
+# 1. 安装依赖
 npm install
 
-# 2. Copy the env template and edit DATABASE_URL if needed
+# 2. 复制环境变量模板并根据需要修改 DATABASE_URL
 cp .env.example .env
 
-# 3. Start PostgreSQL (see below), then generate the Prisma client
+# 3. 启动 PostgreSQL（见下方），并生成 Prisma client
 npx prisma generate
 
-# 4. Run the dev server
+# 4. 运行开发服务器
 npm run dev
 ```
 
-Open http://localhost:3000.
+打开 http://localhost:3000 。
 
-### Local PostgreSQL
+### 本地 PostgreSQL
 
-If you don't have PostgreSQL installed, start one with Docker. The credentials below match the default `.env`:
+如果你没有安装 PostgreSQL，可以用 Docker 快速启动。下面的账号信息与默认 `.env` 一致：
 
 ```bash
 docker run --name jd2story-postgres \
@@ -48,46 +48,46 @@ docker run --name jd2story-postgres \
   -d postgres:16
 ```
 
-Stop / restart later with `docker stop jd2story-postgres` / `docker start jd2story-postgres`.
+之后用 `docker stop jd2story-postgres` / `docker start jd2story-postgres` 停止或重启容器。
 
-Once models are added to `prisma/schema.prisma`, apply them with:
+在你向 `prisma/schema.prisma` 添加模型后，用如下命令应用变更：
 
 ```bash
 npx prisma migrate dev --name init
 ```
 
-## Available scripts
+## 可用脚本
 
-| Script | Purpose |
+| 脚本 | 作用 |
 | --- | --- |
-| `npm run dev` | Start the Next.js dev server with HMR |
-| `npm run build` | Production build |
-| `npm run start` | Serve the production build |
-| `npm run lint` | Run ESLint |
-| `npx prisma generate` | Regenerate the Prisma client after editing `schema.prisma` |
-| `npx prisma migrate dev` | Create and apply a migration locally |
-| `npx prisma studio` | Open Prisma Studio (DB GUI) |
+| `npm run dev` | 启动 Next.js 开发服务器，支持热重载 |
+| `npm run build` | 生产环境构建 |
+| `npm run start` | 启动生产环境构建后的服务 |
+| `npm run lint` | 运行 ESLint 检查代码风格 |
+| `npx prisma generate` | 在编辑 `schema.prisma` 后重新生成 Prisma client |
+| `npx prisma migrate dev` | 本地创建和应用数据库迁移 |
+| `npx prisma studio` | 打开 Prisma Studio（数据库图形界面） |
 
-## Directory structure
+## 目录结构
 
 ```
 JD2Story/
 ├── prisma/
-│   └── schema.prisma        # DB schema (models go here)
+│   └── schema.prisma        # 数据库模型定义
 └── src/
-    ├── app/                 # Next.js App Router — routes, layouts, pages
-    ├── components/          # Shared UI components
-    ├── features/            # Feature modules (one folder per business domain)
-    ├── lib/                 # Clients & utilities (e.g. prisma singleton)
-    └── server/              # Server-only logic (server actions, services)
+    ├── app/                 # Next.js App Router——路由、布局、页面
+    ├── components/          # 共享的 UI 组件
+    ├── features/            # 功能模块（每个业务域一个文件夹）
+    ├── lib/                 # 客户端与工具类（如 prisma 单例）
+    └── server/              # 仅服务端逻辑（服务端 action、服务等）
 ```
 
-Import alias `@/*` is configured in `tsconfig.json` and maps to `src/*`.
+`@/*` 导入别名已在 `tsconfig.json` 配置，映射到 `src/*`。
 
-## Environment variables
+## 环境变量
 
-| Variable | Purpose |
+| 变量 | 作用 |
 | --- | --- |
-| `DATABASE_URL` | PostgreSQL connection string used by Prisma |
+| `DATABASE_URL` | Prisma 使用的 PostgreSQL 连接字符串 |
 
-`.env` is gitignored. `.env.example` is the committed template.
+`.env` 已被 gitignore。`.env.example` 为已提交的模板文件。

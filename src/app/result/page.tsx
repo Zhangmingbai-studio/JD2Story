@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { resultStore, type ResultPayload } from "@/lib/storage";
+import { useSession } from "next-auth/react";
+import { resultStore, inputStore, type ResultPayload } from "@/lib/storage";
 import type { JDStructure, MatchAnalysis, InterviewQuestion } from "@/lib/schemas";
 
 type TabId = "jd" | "match" | "questions" | "onepager";
@@ -16,9 +17,11 @@ const TABS: { id: TabId; label: string }[] = [
 
 export default function ResultPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [result, setResult] = useState<ResultPayload | null | "loading">("loading");
   const [active, setActive] = useState<TabId>("jd");
   const [showExport, setShowExport] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     const r = resultStore.load();
@@ -47,6 +50,31 @@ export default function ResultPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {session && !saved && (
+            <button
+              type="button"
+              onClick={async () => {
+                const input = inputStore.load();
+                if (!input || !result || typeof result === "string") return;
+                const title = result.jd?.title ?? "未命名作战卡";
+                const res = await fetch("/api/battle-cards", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ title, input, result }),
+                });
+                const data = await res.json();
+                if (data.ok) setSaved(true);
+              }}
+              className="rounded-md border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50"
+            >
+              保存
+            </button>
+          )}
+          {saved && (
+            <span className="flex items-center rounded-md border border-green-300 bg-green-50 px-4 py-2 text-sm text-green-700">
+              已保存
+            </span>
+          )}
           <button
             type="button"
             onClick={() => setShowExport(true)}

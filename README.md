@@ -2,7 +2,7 @@
 
 程序员面试作战卡 —— 一个将职位描述转化为面试作战卡的网页工具。
 
-目前本仓库仅包含项目的基础结构，尚未实现业务功能。
+本仓库包含 JD2Story MVP：粘贴 JD、上传/粘贴简历、生成面试作战卡，并支持 GitHub 登录后的历史记录持久化。
 
 ## 技术栈
 
@@ -89,5 +89,14 @@ JD2Story/
 | 变量 | 作用 |
 | --- | --- |
 | `DATABASE_URL` | Prisma 使用的 PostgreSQL 连接字符串 |
+| `LLM_API_KEY` | LLM 服务 API Key |
+| `LLM_BASE_URL` | OpenAI-compatible LLM 服务地址 |
+| `LLM_MODEL` | LLM 模型名 |
+| `NEXTAUTH_URL` | NextAuth 当前站点地址 |
+| `NEXTAUTH_SECRET` | NextAuth 加密 secret |
+| `GITHUB_CLIENT_ID` | GitHub OAuth App Client ID |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth App Client Secret |
 
 `.env` 已被 gitignore。`.env.example` 为已提交的模板文件。
+
+生产部署说明见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。

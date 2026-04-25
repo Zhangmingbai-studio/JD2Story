@@ -13,8 +13,12 @@ export async function GET(
   }
 
   const userId = (session.user as { id?: string }).id;
+  if (!userId) {
+    return NextResponse.json({ ok: false, error: "用户信息异常" }, { status: 401 });
+  }
+
   const card = await prisma.battleCard.findFirst({
-    where: { id: params.id, userId: userId! },
+    where: { id: params.id, userId },
   });
 
   if (!card) {
@@ -34,8 +38,12 @@ export async function DELETE(
   }
 
   const userId = (session.user as { id?: string }).id;
+  if (!userId) {
+    return NextResponse.json({ ok: false, error: "用户信息异常" }, { status: 401 });
+  }
+
   await prisma.battleCard.deleteMany({
-    where: { id: params.id, userId: userId! },
+    where: { id: params.id, userId },
   });
 
   return NextResponse.json({ ok: true });

@@ -11,12 +11,38 @@ import {
 } from "@/lib/schemas";
 
 export const runtime = "nodejs";
-export const maxDuration = 90;
+export const maxDuration = 300;
+
+const QuestionCategorySchema = z.enum(["opener", "technical", "behavioral"]);
+
+const CATEGORY_META: Record<
+  z.infer<typeof QuestionCategorySchema>,
+  { label: string; guidance: string }
+> = {
+  opener: {
+    label: "开场题",
+    guidance: "围绕自我介绍、岗位动机、项目总览和候选人最适合先亮出来的经历。",
+  },
+  technical: {
+    label: "技术题",
+    guidance: "围绕 JD 核心技能、候选人项目细节、架构取舍、性能、稳定性和排障深挖。",
+  },
+  behavioral: {
+    label: "行为题",
+    guidance: "围绕跨团队协作、推动落地、冲突处理、复盘成长和不确定性下的判断。",
+  },
+};
 
 const BodySchema = z.object({
   jd: JDStructureSchema,
   resume: ResumeStructureSchema,
   match: MatchAnalysisSchema,
+  batch: z
+    .object({
+      category: QuestionCategorySchema,
+      count: z.number().int().min(1).max(5),
+    })
+    .optional(),
 });
 
 function getLoggableError(err: unknown) {
@@ -42,19 +68,29 @@ export async function POST(req: NextRequest) {
 
   try {
     assertLLMConfigured();
-    const { jd, resume, match } = parsed.data;
+    const { jd, resume, match, batch } = parsed.data;
+    const category = batch?.category;
+    const categoryMeta = category ? CATEGORY_META[category] : null;
+    const questionCount = batch?.count ?? 10;
+    const countInstruction = category
+      ? `请只生成 ${questionCount} 道${categoryMeta?.label}，每道题的 category 必须是 "${category}"。`
+      : "请生成 10 道面试题：2 道开场题 + 5 道技术题 + 3 道行为题。";
+    const categoryGuidance = categoryMeta
+      ? `本批次重点：${categoryMeta.guidance}`
+      : "整体覆盖开场、技术和行为三个类别。";
 
     const generation = await generateText({
       model,
       temperature: 0.35,
-      maxOutputTokens: 4500,
+      maxOutputTokens: Math.max(1400, questionCount * 650),
+      timeout: 75_000,
       output: Output.object({
         schema: InterviewQuestionsSchema,
         name: "interview_questions",
-        description: "10 道程序员面试高概率问题及回答骨架",
+        description: "程序员面试高概率问题及回答骨架",
       }),
       system:
-        "你是资深程序员面试辅导教练。你的任务是根据 JD、简历和匹配分析，生成 10 道高概率面试题及回答骨架。所有字段用简体中文。只输出合法 JSON，不要输出解释、Markdown 或其他内容。",
+        "你是资深程序员面试辅导教练。你的任务是根据 JD、简历和匹配分析，生成高概率面试题及回答骨架。所有字段用简体中文。只输出合法 JSON，不要输出解释、Markdown 或其他内容。",
       prompt: `岗位 JD 结构化信息：
 ${JSON.stringify(jd, null, 2)}
 
@@ -64,7 +100,8 @@ ${JSON.stringify(resume, null, 2)}
 匹配分析：
 ${JSON.stringify(match, null, 2)}
 
-请生成 10 道面试题：2 道开场题 + 5 道技术题 + 3 道行为题。
+${countInstruction}
+${categoryGuidance}
 
 严格按照以下 JSON 格式输出，字段名必须完全一致：
 {
@@ -91,6 +128,7 @@ category 取值：opener（开场）、technical（技术）、behavioral（行�
 - 技术题要围绕 JD 核心技能和候选人项目经历，深度要够。
 - 行为题要结合候选人可能的真实场景。
 - answerSkeleton 是帮候选人准备的回答框架，不是标准答案。
+- 每题 structure 控制在 2-4 条，dataToEmphasize 控制在 1-3 条，pitfalls 控制在 1-2 条，followUps 控制在 1-2 条。
 - pitfalls 要实事求是，指出候选人可能讲不清楚或容易翻车的点。
 - followUps 是面试官听完回答后大概率会追问的方向。
 `,
@@ -108,7 +146,28 @@ category 取值：opener（开场）、technical（技术）、behavioral（行�
       );
     }
 
-    return NextResponse.json({ ok: true, data: result.data, requestId });
+    const questions = category
+      ? result.data.questions
+          .slice(0, questionCount)
+          .map((question) => ({ ...question, category }))
+      : result.data.questions;
+
+    if (questions.length < questionCount) {
+      console.error(
+        `[generate-questions:${requestId}] insufficient questions:`,
+        { expected: questionCount, actual: questions.length, category },
+      );
+      return NextResponse.json(
+        { ok: false, error: "问题生成数量不足，请重试", requestId },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      data: { questions },
+      requestId,
+    });
   } catch (err) {
     if (err instanceof LLMNotConfiguredError) {
       return NextResponse.json(

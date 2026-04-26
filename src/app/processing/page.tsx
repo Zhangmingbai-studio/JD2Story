@@ -4,7 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { inputStore, resultStore } from "@/lib/storage";
-import type { JDStructure, ResumeStructure, MatchAnalysis, InterviewQuestions } from "@/lib/schemas";
+import type {
+  InterviewQuestion,
+  InterviewQuestions,
+  JDStructure,
+  MatchAnalysis,
+  ResumeStructure,
+} from "@/lib/schemas";
 
 type NodeStatus = "pending" | "running" | "done" | "error";
 
@@ -28,6 +34,12 @@ const INITIAL_NODES: Node[] = [
   { id: "match", label: "正在匹配岗位与经历", status: "pending" },
   { id: "questions", label: "正在生成问题与回答骨架", status: "pending" },
 ];
+
+const QUESTION_BATCHES = [
+  { category: "opener", count: 2, label: "开场题" },
+  { category: "technical", count: 5, label: "技术题" },
+  { category: "behavioral", count: 3, label: "行为题" },
+] as const;
 
 async function readApiResult<T>(res: Response): Promise<ApiResult<T>> {
   try {
@@ -132,20 +144,47 @@ export default function ProcessingPage() {
         const match = matchData.data as MatchAnalysis;
 
         // Step 3: Generate questions
-        setNode("questions", { status: "running" });
-        const qRes = await fetch("/api/generate-questions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jd, resume, match }),
+        setNode("questions", {
+          status: "running",
+          detail: "正在并行生成开场题、技术题和行为题",
         });
-        const qData = await readApiResult<InterviewQuestions>(qRes);
-        if (!qRes.ok || !qData.ok) {
-          const detail = formatApiError(qRes, qData, "问题生成失败");
+
+        let questionGroups: InterviewQuestion[][];
+        try {
+          questionGroups = await Promise.all(
+            QUESTION_BATCHES.map(async (batch) => {
+              const qRes = await fetch("/api/generate-questions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ jd, resume, match, batch }),
+              });
+              const qData = await readApiResult<InterviewQuestions>(qRes);
+              if (!qRes.ok || !qData.ok || !qData.data) {
+                const detail = formatApiError(
+                  qRes,
+                  qData,
+                  `${batch.label}生成失败`,
+                );
+                throw new Error(detail);
+              }
+              return qData.data.questions;
+            }),
+          );
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : "问题生成失败";
+          setNode("questions", { status: "error", detail });
+          throw err;
+        }
+
+        const mergedQuestions = questionGroups.flat() as InterviewQuestion[];
+        if (mergedQuestions.length < 10) {
+          const detail = `问题生成数量不足（${mergedQuestions.length}/10）`;
           setNode("questions", { status: "error", detail });
           throw new Error(detail);
         }
-        setNode("questions", { status: "done" });
-        const questions = qData.data as InterviewQuestions;
+
+        setNode("questions", { status: "done", detail: undefined });
+        const questions: InterviewQuestions = { questions: mergedQuestions };
 
         // All done — save and navigate
         resultStore.save({ jd, resume, match, questions });

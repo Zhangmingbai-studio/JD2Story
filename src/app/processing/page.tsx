@@ -15,12 +15,40 @@ type Node = {
   detail?: string;
 };
 
+type ApiResult<T> = {
+  ok?: boolean;
+  data?: T;
+  error?: string;
+  requestId?: string;
+};
+
 const INITIAL_NODES: Node[] = [
   { id: "jd", label: "正在解析 JD", status: "pending" },
   { id: "resume", label: "正在提取简历经历", status: "pending" },
   { id: "match", label: "正在匹配岗位与经历", status: "pending" },
   { id: "questions", label: "正在生成问题与回答骨架", status: "pending" },
 ];
+
+async function readApiResult<T>(res: Response): Promise<ApiResult<T>> {
+  try {
+    return (await res.json()) as ApiResult<T>;
+  } catch {
+    return {
+      ok: false,
+      error: `接口返回了非 JSON 响应（HTTP ${res.status}）`,
+    };
+  }
+}
+
+function formatApiError<T>(
+  res: Response,
+  data: ApiResult<T>,
+  fallback: string,
+) {
+  const base =
+    data.error ?? (res.ok ? fallback : `${fallback}（HTTP ${res.status}）`);
+  return data.requestId ? `${base}（requestId: ${data.requestId}）` : base;
+}
 
 export default function ProcessingPage() {
   const router = useRouter();
@@ -68,19 +96,21 @@ export default function ProcessingPage() {
           }),
         ]);
 
-        const jdData = await jdRes.json();
-        const resumeData = await resumeRes.json();
+        const jdData = await readApiResult<JDStructure>(jdRes);
+        const resumeData = await readApiResult<ResumeStructure>(resumeRes);
 
         if (!jdRes.ok || !jdData.ok) {
-          setNode("jd", { status: "error", detail: jdData?.error ?? `HTTP ${jdRes.status}` });
-          throw new Error(jdData?.error ?? "JD 解析失败");
+          const detail = formatApiError(jdRes, jdData, "JD 解析失败");
+          setNode("jd", { status: "error", detail });
+          throw new Error(detail);
         }
         setNode("jd", { status: "done" });
         const jd = jdData.data as JDStructure;
 
         if (!resumeRes.ok || !resumeData.ok) {
-          setNode("resume", { status: "error", detail: resumeData?.error ?? `HTTP ${resumeRes.status}` });
-          throw new Error(resumeData?.error ?? "简历抽取失败");
+          const detail = formatApiError(resumeRes, resumeData, "简历抽取失败");
+          setNode("resume", { status: "error", detail });
+          throw new Error(detail);
         }
         setNode("resume", { status: "done" });
         const resume = resumeData.data as ResumeStructure;
@@ -92,10 +122,11 @@ export default function ProcessingPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jd, resume }),
         });
-        const matchData = await matchRes.json();
+        const matchData = await readApiResult<MatchAnalysis>(matchRes);
         if (!matchRes.ok || !matchData.ok) {
-          setNode("match", { status: "error", detail: matchData?.error ?? `HTTP ${matchRes.status}` });
-          throw new Error(matchData?.error ?? "匹配分析失败");
+          const detail = formatApiError(matchRes, matchData, "匹配分析失败");
+          setNode("match", { status: "error", detail });
+          throw new Error(detail);
         }
         setNode("match", { status: "done" });
         const match = matchData.data as MatchAnalysis;
@@ -107,10 +138,11 @@ export default function ProcessingPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jd, resume, match }),
         });
-        const qData = await qRes.json();
+        const qData = await readApiResult<InterviewQuestions>(qRes);
         if (!qRes.ok || !qData.ok) {
-          setNode("questions", { status: "error", detail: qData?.error ?? `HTTP ${qRes.status}` });
-          throw new Error(qData?.error ?? "问题生成失败");
+          const detail = formatApiError(qRes, qData, "问题生成失败");
+          setNode("questions", { status: "error", detail });
+          throw new Error(detail);
         }
         setNode("questions", { status: "done" });
         const questions = qData.data as InterviewQuestions;

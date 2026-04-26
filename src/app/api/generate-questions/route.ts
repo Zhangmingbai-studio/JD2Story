@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateText } from "ai";
+import { randomUUID } from "crypto";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 import { model, assertLLMConfigured, LLMNotConfiguredError } from "@/lib/llm";
 import {
@@ -18,11 +19,23 @@ const BodySchema = z.object({
   match: MatchAnalysisSchema,
 });
 
+function getLoggableError(err: unknown) {
+  if (err instanceof Error) {
+    return {
+      name: err.name,
+      message: err.message,
+      stack: err.stack?.split("\n").slice(0, 4).join("\n"),
+    };
+  }
+  return { message: String(err) };
+}
+
 export async function POST(req: NextRequest) {
+  const requestId = randomUUID();
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "请求参数错误" },
+      { ok: false, error: "请求参数错误", requestId },
       { status: 400 },
     );
   }
@@ -31,11 +44,17 @@ export async function POST(req: NextRequest) {
     assertLLMConfigured();
     const { jd, resume, match } = parsed.data;
 
-    const { text } = await generateText({
+    const generation = await generateText({
       model,
-      temperature: 0.4,
+      temperature: 0.35,
+      maxOutputTokens: 4500,
+      output: Output.object({
+        schema: InterviewQuestionsSchema,
+        name: "interview_questions",
+        description: "10 道程序员面试高概率问题及回答骨架",
+      }),
       system:
-        "你是资深程序员面试辅导教练。你的任务是根据 JD、简历和匹配分析，生成 10 道高概率面试题及回答骨架。所有字段用简体中文。只输出 JSON，不要输出其他内容。",
+        "你是资深程序员面试辅导教练。你的任务是根据 JD、简历和匹配分析，生成 10 道高概率面试题及回答骨架。所有字段用简体中文。只输出合法 JSON，不要输出解释、Markdown 或其他内容。",
       prompt: `岗位 JD 结构化信息：
 ${JSON.stringify(jd, null, 2)}
 
@@ -77,27 +96,32 @@ category 取值：opener（开场）、technical（技术）、behavioral（行�
 `,
     });
 
-    const json = JSON.parse(text.replace(/^```json\s*/, "").replace(/```\s*$/, ""));
-    const result = InterviewQuestionsSchema.safeParse(json);
+    const result = InterviewQuestionsSchema.safeParse(generation.output);
     if (!result.success) {
-      console.error("[generate-questions] schema validation failed:", result.error.issues);
+      console.error(
+        `[generate-questions:${requestId}] schema validation failed:`,
+        result.error.issues,
+      );
       return NextResponse.json(
-        { ok: false, error: "问题生成结果格式异常，请重试" },
+        { ok: false, error: "问题生成结果格式异常，请重试", requestId },
         { status: 500 },
       );
     }
 
-    return NextResponse.json({ ok: true, data: result.data });
+    return NextResponse.json({ ok: true, data: result.data, requestId });
   } catch (err) {
     if (err instanceof LLMNotConfiguredError) {
       return NextResponse.json(
-        { ok: false, error: "后端未配置 LLM_API_KEY" },
+        { ok: false, error: "后端未配置 LLM_API_KEY", requestId },
         { status: 503 },
       );
     }
-    console.error("[generate-questions] failed:", err);
+    console.error(
+      `[generate-questions:${requestId}] failed:`,
+      getLoggableError(err),
+    );
     return NextResponse.json(
-      { ok: false, error: "问题生成失败，请稍后重试" },
+      { ok: false, error: "问题生成失败，请稍后重试", requestId },
       { status: 500 },
     );
   }
